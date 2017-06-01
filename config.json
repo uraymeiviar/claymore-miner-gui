@@ -1,0 +1,7 @@
+{
+  "minerIP" : "192.168.1.130",
+  "minerPort" : 33333,
+  "nodePort" : 33334,
+  "fetchInterval" : 1000,
+  "dataHistory" : 100
+}

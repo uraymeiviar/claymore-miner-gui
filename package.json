@@ -1,0 +1,17 @@
+{
+  "name": "claymore-node-client",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node claymore-client.js",
+    "debug": "node --nolazy --debug-brk=5858 claymore-client.js"
+  },
+  "dependencies": {
+    "body-parser": "*",
+    "async": "*",
+    "socket.io": "*",
+    "compression": "*",
+    "request" : "*",
+    "express" : "*",
+    "cors" : "*"
+  }
+}
