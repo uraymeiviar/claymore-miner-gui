@@ -45,14 +45,14 @@ process.on('uncaughtException', function(error){
     exitHandler(app , {signal:"exception"}, error);
 });
 
-server.httpServer.listen(server.config.nodePort, function(err){
+server.httpServer.listen(server.config.listenPort, function(err){
     if (err) {
         console.log("failed to start http server");
         return;
     }
     else{
         server.websocketServer = websocket(server.httpServer);
-        console.log("http server listening on port: " + server.config.nodePort);        
+        console.log("http server listening on port: " + server.config.listenPort);        
         app.init(server, function(){
             console.log("node started, fetching data from "+server.config.minerIP+" port "+server.config.minerPort);
         });

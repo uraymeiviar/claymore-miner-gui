@@ -1,4 +1,6 @@
 var request = require('request');
+var net = require('net');
+
 var App = {
 	server : null,
 	config : null,
@@ -10,26 +12,57 @@ var App = {
     	var self = this;
         this.server = server;
         this.config = server.config;
-
-        self.fetchPromise = setTimeout(function(){
-            self.fetchData(self.onNewData.bind(self));
-        }, self.config.fetchInterval);
+        
+        self.fetchJSONRPCData();
+        //self.fetchHTTPData();
 
         if(typeof done === 'function'){
         	done(this);
         }
     },
 
-    onNewData : function(data){
+    jsonRPCGetStat : function(callback){
         var self = this;
-        try{
-            var firstJsonChar = data.indexOf('{');
-            var lastJsonChar = data.lastIndexOf('}');
-            var jsonString = data.substring(firstJsonChar,lastJsonChar+1);
-            var jsonData = JSON.parse(jsonString);
-        }
-        catch(e){}    
+        var tcpClient = new net.Socket();
+        var jsonReply = null;
+        tcpClient.on('data', function(data) {
+            var reply = data.toString('utf8');
+            try{
+                jsonReply = JSON.parse(reply);
+            }catch(e){
+                console.log("failed to parse JSON object from reply");
+            }
+        });
 
+        tcpClient.on('error', function() {
+            console.log("JSON-RPC socket error");
+            jsonReply = null;
+        });
+
+        tcpClient.on('timeout', function() {
+            console.log("JSON-RPC socket timeout");
+            jsonReply = null;
+            tcpClient.end();
+        });
+
+        tcpClient.on('close', function() {
+            if(jsonReply === null){
+                callback(true, null);
+            }
+            else{
+                callback(false,jsonReply);
+            }
+            tcpClient.destroy();
+        });
+
+        tcpClient.connect(self.config.minerPort, self.config.minerIP, function() {
+            console.log('connected to miner at '+self.config.minerIP+":"+self.config.minerPort);
+            tcpClient.write('{"id":1337,"jsonrpc": "2.0","method":"miner_getstat1"}\r\n');
+        });
+    },
+
+    addMinerStat : function(jsonData){
+        var self = this;
         if(jsonData.hasOwnProperty('result')){
             var stat = {
                 version     : jsonData.result[0],
@@ -102,19 +135,37 @@ var App = {
                 self.minerData = self.minerData.shift();
             }
             console.log(JSON.stringify(stat,null,2));
-        }                
+        }  
     },
 
-    fetchData : function(callback){
+    fetchJSONRPCData : function(){
         var self = this;
-        request("http://"+self.config.minerIP+":"+self.config.minerPort, function(err, res, body){
+        self.jsonRPCGetStat(function(error, data){
+            if(error === false){
+                self.addMinerStat(data);
+            }            
+            if(self.loopFetch === true){
+                self.fetchPromise = setTimeout(self.fetchJSONRPCData.bind(self), self.config.fetchInterval);
+            }
+        });
+    },
+
+    fetchHTTPData : function(){
+        var self = this;
+        request("http://"+self.config.minerIP+":"+self.config.minerPort, function(err, res, data){
             if(err === null){
-                callback(body);
+                try{
+                    var firstJsonChar = data.indexOf('{');
+                    var lastJsonChar = data.lastIndexOf('}');
+                    var jsonString = data.substring(firstJsonChar,lastJsonChar+1);
+                    var jsonData = JSON.parse(jsonString);
+                }
+                catch(e){}    
+
+                self.addMinerStat(jsonData);   
             }
             if(self.loopFetch === true){
-                self.fetchPromise = setTimeout(function(){
-                    self.fetchData(self.onNewData.bind(self));
-                }, self.config.fetchInterval);
+                self.fetchPromise = setTimeout(self.fetchHTTPData.bind(self), self.config.fetchInterval);
             }
         });
     },
